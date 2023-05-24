@@ -1,11 +1,19 @@
 
 -- create warehouse, database, and schema
 use role sysadmin;
-create or replace warehouse wh_snowpark_hol;
-use warehouse wh_snowpark_hol;
-create or replace database db_snowpark_hol;
-use database db_snowpark_hol;
-create or replace schema roi_prediction;
+create or replace warehouse WH_SNOWPARK_HOL
+    MAX_CLUSTER_COUNT = 2
+  MIN_CLUSTER_COUNT = 1
+  SCALING_POLICY = STANDARD
+  auto_suspend=60;
+use warehouse WH_SNOWPARK_HOL;
+
+
+
+
+create or replace database DB_SNOWPARK_HOL;
+use database DB_SNOWPARK_HOL;
+create or replace schema ROI_PREDICTION;
 
 -- Create table CAMPAIGN_SPEND from data hosted on publicly accessible S3 bucket
 create or replace file format csvformat
@@ -124,7 +132,17 @@ create stage demo_models;
 create stage demo_udfs;
 
 -- Grant privileges to workshop role for accessing stages
-create role snowpark_workshop_role;
-grant all privileges on stage demo_sprocs to role snowpark_workshop_role;
-grant all privileges on stage demo_models to role snowpark_workshop_role;
-grant all privileges on stage demo_udfs to role snowpark_workshop_role;
+use role securityadmin;
+create  or replace role SNOWPARK_WORKSHOP_ROLE;
+grant all privileges on stage db_snowpark_hol.roi_prediction.demo_sprocs to role SNOWPARK_WORKSHOP_ROLE;
+grant all privileges on stage db_snowpark_hol.roi_prediction.demo_models to role SNOWPARK_WORKSHOP_ROLE;
+grant all privileges on stage db_snowpark_hol.roi_prediction.demo_udfs to role SNOWPARK_WORKSHOP_ROLE;
+grant all privileges on database db_snowpark_hol to role SNOWPARK_WORKSHOP_ROLE;
+grant all privileges on schema db_snowpark_hol.roi_prediction to role SNOWPARK_WORKSHOP_ROLE;
+grant insert, update, delete, select on all tables in schema db_snowpark_hol.roi_prediction to role SNOWPARK_WORKSHOP_ROLE;
+grant insert, update, delete, select on future tables in schema db_snowpark_hol.roi_prediction to role SNOWPARK_WORKSHOP_ROLE;
+
+grant usage on warehouse wh_snowpark_hol to role SNOWPARK_WORKSHOP_ROLE;
+
+--Fill in these with the users attending the workshop
+grant role SNOWPARK_WORKSHOP_ROLE to user username1;
