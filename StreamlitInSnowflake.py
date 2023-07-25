@@ -71,7 +71,7 @@ def add_new_prediction(df_hist: pd.DataFrame, new_allocations: dict, predicted_r
     return pd.concat([df_hist,df_allocations])
 
 # Streamlit config
-st.set_page_config("SportsCo Ad Spend Optimizer", "centered")
+st.set_page_config("Travel & Leisure Ad Spend Optimizer Ad Spend Optimizer", "centered")
 #st.write("<style>[data-testid='stMetricLabel'] {min-height: 0.5rem !important}</style>", unsafe_allow_html=True)
 
 st.title("SportsCo Ad Spend Optimizer")
