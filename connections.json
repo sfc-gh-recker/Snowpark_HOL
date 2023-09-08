@@ -5,6 +5,16 @@
     "schema": "ROI_PREDICTION",
     "warehouse": "WH_SHOWPARK_HOL",
     "rolename": "SNOWPARK_WORKSHOP_ROLE",
-    "password": "XXX"
+    "": "XXX"
     
+  }
+
+  {
+    "account": "blackboard",
+    "user": "<your username>",
+    "database": "DB_SNOWPARK_HOL",
+    "schema": "ROI_PREDICTION",
+    "warehouse": "WH_SNOWPARK_HOL",
+    "role": "PD_BLACKBOARD_DATA_BASIS",
+    "authenticator": "externalbrowser" 
   }
