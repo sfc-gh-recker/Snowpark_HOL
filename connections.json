@@ -15,6 +15,6 @@
     "database": "DB_SNOWPARK_HOL",
     "schema": "ROI_PREDICTION",
     "warehouse": "WH_SNOWPARK_HOL",
-    "role": "PD_BLACKBOARD_DATA_BASIS",
+    "role": "SNOWPARK_WORKSHOP_ROLE",
     "authenticator": "externalbrowser" 
   }
