@@ -58,8 +58,14 @@ with tab1:
         df = session.table(f'"{db}"."{schema}"."{table}"').to_pandas()
        
 with tab2:
-    
-    df = session.table(f'"{db}"."{schema}"."{table}"').to_pandas()   
+    try:
+        # check if table already exists
+        session.sql(f'SELECT 1 FROM "{db}"."{schema}"."{table}" LIMIT 1').collect()
+        df = session.table(f'"{db}"."{schema}"."{table}"').to_pandas()
+    except:
+        st.error("Table does not exist.")
+        st.stop()
+ 
 
     # Data Quality Checks
 
