@@ -2,7 +2,7 @@
 -- create warehouse, database, and schema
 use role sysadmin;
 create or replace warehouse WH_SNOWPARK_HOL
-    MAX_CLUSTER_COUNT = 2
+    MAX_CLUSTER_COUNT = 4
   MIN_CLUSTER_COUNT = 1
   SCALING_POLICY = STANDARD
   auto_suspend=60;
