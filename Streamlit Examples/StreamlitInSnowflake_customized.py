@@ -1,155 +1,178 @@
 # Snowpark for Python API reference: https://docs.snowflake.com/en/developer-guide/snowpark/reference/python/index.html
 # Snowpark for Python Developer Guide: https://docs.snowflake.com/en/developer-guide/snowpark/python/index.html
 # Streamlit docs: https://docs.streamlit.io/
-
 import json
+import calendar
 import altair as alt
 import pandas as pd
 from snowflake.snowpark.session import Session
 from snowflake.snowpark import Table
 import snowflake.snowpark.functions as F
 import streamlit as st
-
-INITS="re"
-MONTH="2022-04-01"
-SEASON="'spring'"
 from snowflake.snowpark.context import get_active_session
 
+INITS="re"
+SEASON='fall'
+st.title("Lennar Ad Spend Optimizer")
+session = get_active_session()
 
-def load_total_cost_data(session: Session, group_cols: list) -> Table:
-
-    seasons=(
-        F.when(F.col("MONTH").isin(12, 1, 2),"winter")
-        .when(F.col("MONTH").isin(3, 4, 5),"spring")
-        .when(F.col("MONTH").isin(6, 7, 8),"summer")
-        .when(F.col("MONTH").isin(9, 10, 11),"fall")
-    )
-
+#Create a SQL function to pass the slider values to the predict_leads function
+def get_new_predicted_leads(session: Session, new_allocations: dict, season: str) -> float:
     return (
         session
-            .table("CAMPAIGN_SPEND")
-            .with_column("YEAR",F.year(F.col("DATE")))
-            .with_column("MONTH",F.month(F.col("DATE")))
-            .with_column("SEASON", seasons)
-            .group_by(group_cols)
-            .agg(F.sum(F.col("TOTAL_COST")).as_("TOTAL_COST"))
-            # .sort(F.col("YEAR").asc(), F.col("MONTH").asc())
-    )
-
-
-def load_revenue_data(session: Session) -> Table:
-    return session.table("MONTHLY_REVENUE")
-
-
-def join_data(df_cost: Table, df_revenue: Table) -> pd.DataFrame:
-    return (
-        df_cost
-            .join(df_revenue, on=["MONTH","YEAR"])
-            .with_column("DATE", F.date_from_parts(F.col("YEAR"), F.col("MONTH"), 1))
-            .filter((F.col("DATE")>="2021-04-01") & (F.col("DATE")<"2022-04-01"))
-            .drop([F.col("YEAR"), F.col("MONTH")])
-            .sort(F.col("DATE").asc())
+            .sql(
+                f"""SELECT predict_leads_{INITS}(array_construct(
+                    '{season}',
+                    {new_allocations['OFFLINE MARKETING']},
+                    {new_allocations['3RD PARTY LISTING']},
+                    {new_allocations['EMAIL']},
+                    {new_allocations['SOCIAL']},
+                    {new_allocations['OTT']},
+                    {new_allocations['DIGITAL NOT SET']},
+                    {new_allocations['RADIO']},
+                    {new_allocations['SPEND FORM']},
+                    {new_allocations['DISPLAY']},
+                    {new_allocations['SEM']}
+                ))"""
+            )
             .to_pandas()
+            .iloc[0, 0]
     )
 
-
-def get_new_predicted_revenue(session: Session, new_allocations:dict, season=str) -> float:
-        return (
-            session
-                .sql(f"SELECT predict_roi_re(array_construct({season},{new_allocations['search_engine']}, {new_allocations['social_media']}, {new_allocations['video']}, {new_allocations['email']}))")
-                .to_pandas()
-                .iloc[0,0]
-        )
-
-def add_new_prediction(df_hist: pd.DataFrame, new_allocations: dict, predicted_revenue: float, predicted_month=str) -> pd.DataFrame:
-
-    df_allocations = pd.DataFrame.from_dict({"CHANNEL":new_allocations.keys(),"TOTAL_COST":new_allocations.values()})
-    df_allocations["REVENUE"]=predicted_revenue
-    df_allocations["SEASON"]="spring"
-    df_allocations["DATE"]=predicted_month
-    
-    return pd.concat([df_hist,df_allocations])
-
-# Streamlit config
-st.set_page_config("Travel & Leisure Ad Spend Optimizer", "centered")
-#st.write("<style>[data-testid='stMetricLabel'] {min-height: 0.5rem !important}</style>", unsafe_allow_html=True)
-
-st.title("SportsCo Ad Spend Optimizer")
-
-# Call functions to get Snowflake session and load data
-session = get_active_session()
-sdf_total_cost=load_total_cost_data(session, group_cols=["MONTH","YEAR","SEASON","CHANNEL"])
-sdf_revenue=load_revenue_data(session)
-pdf_cost_and_revenue=join_data(sdf_total_cost, sdf_revenue)
 
 # Display advertising budget sliders and set their default values
 st.header("Advertising budgets")
-st.caption("Use the sliders below to adjust how much budget to allocate to each channel. Click 'Predict revenue' to predict how much revenue will be generated")
+st.caption("Use the sliders below to adjust how much budget to allocate to each channel. Click 'Predict Leads' to predict how many leads will be generated")
 
+# Build out sliders for each channel spend amount
 with st.form("form_budget_allocation"):
     col1, _, col2 = st.columns([4, 1, 4])
-    new_allocations = {"search_engine":0, "social_media":0, "email":0, "video":0}
-    for channel, col in zip(new_allocations.keys(), [col1, col1, col2, col2]):
+    new_allocations = {"OFFLINE MARKETING":0,"3RD PARTY LISTING":0,"EMAIL":0,"SOCIAL":0, "OTT":0,"DIGITAL NOT SET":0,"RADIO":0,"SPEND FORM":0,"DISPLAY":0,"SEM":0}
+  # Create a list of columns to cycle through
+    columns = [col1, col2] * (len(new_allocations) // 2)
+    
+    for channel, col in zip(new_allocations.keys(), columns):
         with col:
-            budget = st.slider(channel, 0, 1000000, 1000)
+            budget = st.slider(channel, 0, 3000000, 1000)
             new_allocations[channel] = budget
-    with col1:
-        submit=st.form_submit_button("Predict revenue")
 
+            
+    with col1:
+        submit = st.form_submit_button("Predict leads")
 
 if submit == True:
-
-    predicted_revenue=get_new_predicted_revenue(
+    
+    predicted_leads=get_new_predicted_leads(
         session=session, 
         new_allocations=new_allocations, 
         season=SEASON
     )
 
-    last_month_revenue=pdf_cost_and_revenue["REVENUE"].iloc[-1]
 
-    pct_change = 100*(predicted_revenue - last_month_revenue) / last_month_revenue
+    df_predicted = pd.DataFrame({
+        'YEAR': [2023] * len(new_allocations),  # Adding month as "10" for all rows
+        'MONTH': [10] * len(new_allocations),  # Adding month as "10" for all rows
+        'SEASON': [SEASON] * len(new_allocations),  # Using the SEASON value for all rows
+        'LEADS': [predicted_leads] * len(new_allocations),  # assuming predicted_leads is a single value for all channels
+        'CHANNEL': list(new_allocations.keys()),
+        'BUDGET': list(new_allocations.values())
+        
+    })
 
-    df_monthly_revenue = add_new_prediction(
-        pdf_cost_and_revenue,
-        new_allocations=new_allocations,
-        predicted_revenue=predicted_revenue,
-        predicted_month=MONTH
+
+    #Data preparation, need to unpivot the data to get it to a way that the charting library will work:
+    
+    snow_df1 = session.table(f"MARKETING_BUDGETS_LEADS_{INITS}").filter(
+        (F.col("YEAR") == 2023) & 
+        (F.col("MONTH") <=9)
+    )
+    snow_df2 = snow_df1.unpivot("Budget", "Channel", ["OFFLINE MARKETING","3RD PARTY LISTING","EMAIL","SOCIAL", "OTT","DIGITAL NOT SET","RADIO", "SPEND FORM","DISPLAY","SEM"])
+
+    df1 = snow_df1.to_pandas()
+    last_month_leads=df1["LEADS"].iloc[-1]
+
+    pct_change = 100*(predicted_leads - last_month_leads) / last_month_leads
+    st.markdown("---")
+    st.metric("", f"Predicted leads {predicted_leads:,.0f} ", f"{pct_change:.1f} % vs last month")
+
+    df=snow_df2.to_pandas()
+  #  st.dataframe(df_predicted)
+  #  st.dataframe(df)
+
+    result_df=pd.concat([df, df_predicted], ignore_index=True)
+   # st.dataframe(result_df)
+    
+    # Create the stacked bar chart for BUDGET
+    bars = alt.Chart(result_df).mark_bar().encode(
+        x='MONTH:O',
+        y=alt.Y('BUDGET:Q', stack='zero', title='Budget'),
+        color='CHANNEL:N',
+        tooltip=['CHANNEL', 'BUDGET', 'LEADS']
     )
     
-    st.markdown("---")
-    st.metric("", f"Predicted revenue ${predicted_revenue:,.0f} ", f"{pct_change:.1f} % vs last month")
-
-    base = alt.Chart(df_monthly_revenue).encode(alt.X("DATE", title="Date", axis=alt.Axis(labelAngle=-45)))
-    bars = base.mark_bar().encode(
-        y=alt.Y("TOTAL_COST", title="Budget"),
-        color=alt.Color("CHANNEL", legend=alt.Legend(orient="top", title=" ")),
-        opacity=alt.condition(alt.datum.DATE == MONTH, alt.value(1), alt.value(0.4))
+    # Create the line chart for LEADS
+    leads = result_df.groupby('MONTH').agg({'LEADS':'first'}).reset_index()  # get the unique LEADS value for each month
+    line = alt.Chart(result_df).mark_line(color='black', point=True).encode(
+        x='MONTH:O',
+        y=alt.Y('LEADS:Q', title='Leads', axis=alt.Axis(orient='right')),
+        tooltip='LEADS'
     )
-
-    lines = base.mark_line(size=3).encode(
-        y=alt.Y("max(REVENUE)", title="Revenue"), 
-        color=alt.value("#808495"),
-    )
-    points = base.mark_point(strokeWidth=3).encode(
-        y=alt.Y("REVENUE"),
-        stroke=alt.value("#808495"),
-        fill=alt.value("white"),
-    )
-    chart = alt.layer(bars, lines + points).resolve_scale(y="independent")
-    chart = (
-        chart
-            .configure_view(strokeWidth=0)
-            .configure_axisY(domain=False)
-            .configure_axis(
-                labelColor="#808495",
-                tickColor="#e6eaf1",
-                gridColor="#e6eaf1",
-                domainColor="#e6eaf1",
-                titleFontWeight=600,
-                titlePadding=10,
-                labelPadding=5,
-                labelFontSize=14
-            )
-            .configure_range(category=["#FFE08E", "#03C0F2", "#FFAAAB", "#995EFF"])
+    
+    # Combine the bar chart and the line chart
+    chart = alt.layer(bars, line).resolve_scale(
+        y='independent'  # this ensures that the Y scales for bars and line are independent
     )
     st.altair_chart(chart, use_container_width=True)
+    
+    
+    
+## OPTIONAL-- ENHANCED BAR CHART IF YOU WANT MORE FORMATTING OPTIONS  
+
+
+    # Find the last month in the dataframe
+    last_month = result_df['MONTH'].max()
+
+
+    # ENHANCED BAR CHART OPTIONAL Create the stacked bar chart for BUDGET with a new color scheme and opacity
+    bars = alt.Chart(result_df).mark_bar(opacity=0.7).encode(
+        x='MONTH:O',
+        y=alt.Y('BUDGET:Q', stack='zero', title='Budget'),
+        color=alt.Color('CHANNEL:N', scale=alt.Scale(scheme='tableau20')),  # Using the 'tableau20' color scheme
+        stroke=alt.condition(
+            alt.datum.MONTH == last_month,
+            alt.value('black'),  # Stroke color for the last month
+            alt.value(None)  # No stroke for other months
+        ),
+        strokeWidth=alt.condition(
+            alt.datum.MONTH == last_month,
+            alt.value(2),  # Stroke width for the last month
+            alt.value(0)  # No stroke width for other months
+        ),
+        strokeDash=alt.condition(
+            alt.datum.MONTH == last_month,
+            alt.value([5, 5]),  # Dotted pattern for the last month
+            alt.value([0, 0])  # No pattern for other months
+        ),
+        tooltip=['CHANNEL', 'BUDGET', 'LEADS'],
+        opacity=alt.condition("datum.BUDGET > 0", alt.value(0.7), alt.value(0.1))  # Enhance opacity for non-zero values
+    ).interactive()
+    
+    # Create the line chart for LEADS with modified hover capabilities
+    leads = result_df.groupby('MONTH').agg({'LEADS':'first'}).reset_index()  # get the unique LEADS value for each month
+    line = alt.Chart(leads).mark_line(point=True).encode(
+        x='MONTH:O',
+        y=alt.Y('LEADS:Q', title='Leads', axis=alt.Axis(orient='right')),
+        tooltip=alt.Tooltip('LEADS:Q', title='Leads'),  # Display "Leads" in the tooltip
+        size=alt.condition(~alt.datum.LEADS, alt.value(1), alt.value(3))  # Enhance line width on hover
+    ).interactive()
+    
+    # Combine the bar chart and the line chart
+    chart = alt.layer(bars, line).resolve_scale(
+        y='independent'  # this ensures that the Y scales for bars and line are independent
+    )
+    st.altair_chart(chart, use_container_width=True)
+
+
+
+
+
