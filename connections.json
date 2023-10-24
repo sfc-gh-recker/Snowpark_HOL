@@ -9,3 +9,13 @@
     
   }
 
+  {
+  "account": "bz12058.us-east-2.aws",
+  "user": "JOHN",
+  "database": "DB_SNOWPARK_HOL",
+  "schema": "ROI_PREDICTION",
+  "warehouse": "WH_SHOWPARK_HOL",
+  "rolename": "SNOWPARK_WORKSHOP_ROLE",
+  "password": "xxx!"
+  
+}
